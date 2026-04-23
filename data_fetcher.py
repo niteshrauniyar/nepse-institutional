@@ -1,5 +1,5 @@
-import requests
 import pandas as pd
+import requests
 from bs4 import BeautifulSoup
 from utils import get_headers, retry
 
@@ -7,7 +7,8 @@ def fetch_nepse_api():
     def _fetch():
         url = "https://nepsealpha.com/api/symbols"
         r = requests.get(url, headers=get_headers(), timeout=10)
-        return pd.DataFrame(r.json())
+        data = r.json()
+        return pd.DataFrame(data)
     return retry(_fetch)
 
 def fetch_sharesansar():
@@ -17,27 +18,32 @@ def fetch_sharesansar():
         soup = BeautifulSoup(r.text, "lxml")
 
         table = soup.find("table")
-        rows = table.find_all("tr")[1:]
+        if table is None:
+            return None
 
+        rows = table.find_all("tr")
         data = []
+
         for row in rows:
             cols = [c.text.strip() for c in row.find_all("td")]
-            if len(cols) > 5:
+            if len(cols) > 3:
                 data.append(cols)
 
-        df = pd.DataFrame(data)
-        return df
+        return pd.DataFrame(data)
     return retry(_fetch)
 
 def fetch_nepsealpha():
     def _fetch():
         url = "https://nepsealpha.com/trading/1"
-        r = requests.get(url, headers=get_headers(), timeout=10)
-        return pd.read_html(r.text)[0]
+        tables = pd.read_html(url)
+        if len(tables) > 0:
+            return tables[0]
+        return None
     return retry(_fetch)
 
 def fallback_data():
     import numpy as np
+
     symbols = ["NABIL", "NRIC", "NTC", "GBIME"]
     data = []
 
@@ -57,14 +63,18 @@ def fallback_data():
 
 def fetch_all():
     sources = [
-        fetch_nepse_api,
-        fetch_sharesansar,
-        fetch_nepsealpha
+        fetch_nepse_api(),
+        fetch_sharesansar(),
+        fetch_nepsealpha()
     ]
 
-    for src in sources:
-        data = src()
-        if data is not None and len(data) > 0:
-            return data
+    valid = []
 
-    return fallback_data()
+    for df in sources:
+        if df is not None and isinstance(df, pd.DataFrame) and len(df) > 0:
+            valid.append(df)
+
+    if len(valid) == 0:
+        return fallback_data()
+
+    return valid
