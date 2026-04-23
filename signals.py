@@ -2,35 +2,37 @@ def generate_signal(row):
     score = 0
     reasons = []
 
-    if row.get("accumulation"):
+    if row["accumulation"]:
         score += 40
-        reasons.append("Smart money accumulation")
+        reasons.append("Accumulation detected")
 
-    if row.get("large_trade"):
-        score += 20
-        reasons.append("Large trades detected")
+    if row["large_trade"]:
+        score += 25
+        reasons.append("Institutional volume spike")
 
-    if row.get("amihud", 1) < 0.001:
-        score += 20
+    if row["amihud"] < 0.001:
+        score += 15
         reasons.append("High liquidity")
 
-    if row.get("distribution"):
-        score -= 40
-        reasons.append("Distribution phase")
+    if row["distribution"]:
+        score -= 50
+        reasons.append("Distribution detected")
 
-    if score > 50:
+    if score >= 50:
         signal = "BUY"
-    elif score < -20:
+    elif score <= -20:
         signal = "SELL"
     else:
         signal = "NEUTRAL"
 
-    return signal, min(max(score, 0), 100), ", ".join(reasons)
+    return signal, max(min(score, 100), 0), ", ".join(reasons)
 
 
 def add_signals(df):
-    signals = df.apply(generate_signal, axis=1)
-    df["signal"] = [s[0] for s in signals]
-    df["confidence"] = [s[1] for s in signals]
-    df["reason"] = [s[2] for s in signals]
+    results = df.apply(generate_signal, axis=1)
+
+    df["signal"] = [r[0] for r in results]
+    df["confidence"] = [r[1] for r in results]
+    df["reason"] = [r[2] for r in results]
+
     return df
